@@ -1,0 +1,10 @@
+{
+    "name": "igritsay/phing-tools",
+    "authors": [
+        {
+            "name": "igritsay",
+            "email": "igritsay86@gmail.com"
+        }
+    ],
+    "require": {}
+}
