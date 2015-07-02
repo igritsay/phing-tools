@@ -6,5 +6,7 @@
             "email": "igritsay86@gmail.com"
         }
     ],
-    "require": {}
+    "require": {
+    	"phing/phing": "*"
+    }
 }
