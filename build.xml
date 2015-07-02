@@ -1,0 +1,168 @@
+<project name="deployment-tool" default="help">
+    <property name="base.prop" value="${application.startdir}/build/env/default/build.properties" />
+    <property name="default.prop" value="${application.startdir}/build/env/default/build.properties" />
+    <property name="env.prop" value="${application.startdir}/build/env/${host.name}/build.properties" />
+
+    <available file="${base.prop}" property="base.prop.exists" type="file" />
+    <available file="${default.prop}" property="default.prop.exists" type="file" />
+    <available file="${env.prop}" property="env.prop.exists" type="file" />
+
+    <if>
+        <istrue value="${base.prop.exists}" />
+        <then>
+            <property file="${base.prop}" override="true" />
+        </then>
+    </if>
+
+    <if>
+        <istrue value="${default.prop.exists}" />
+    	<then>
+			<property file="${default.prop}" override="true" />
+		</then>
+	</if>
+
+    <if>
+        <istrue value="${env.prop.exists}" />
+        <then>
+            <property file="${env.prop}" override="true" />
+        </then>
+    </if>
+
+    <target name="help" description="Display help information">
+        <echo message="TODO: need help information here" />
+    </target>
+
+    <target name="info">
+        <echo>application.startdir=${application.startdir}</echo>
+        <echo>host.arch=${host.arch}</echo>
+        <echo>host.domain=${host.domain}</echo>
+        <echo>host.fstype=${host.fstype}</echo>
+        <echo>host.name=${host.name}</echo>
+        <echo>host.os=${host.os}</echo>
+        <echo>host.os.release=${host.os.release}</echo>
+        <echo>host.os.version=${host.os.version}</echo>
+        <echo>line.separator=${line.separator}</echo>
+        <echo>os.name=${os.name}</echo>
+        <echo>phing.file=${phing.file}</echo>
+        <echo>phing.home=${phing.home}</echo>
+        <echo>phing.version=${phing.version}</echo>
+        <echo>phing.project.name=${phing.project.name}</echo>
+        <echo>php.classpath=${php.classpath}</echo>
+        <echo>php.version=${php.version}</echo>
+        <echo>project.basedir=${project.basedir}</echo>
+        <echo>user.home=${user.home}</echo>
+    </target>
+
+    <target name="db-newlines" description="Separate dump rows by newlines">
+        <reflexive file="${db.dir}/${db.file}">
+            <filterchain>
+                <replaceregexp>
+                    <regexp pattern="\),\(" replace="),${line.separator}(" />
+                </replaceregexp>
+            </filterchain>
+        </reflexive>
+    </target>
+
+    <target name="db-create-local" description="Create dump for local url">
+        <copy file="${db.dir}/${db.file}" tofile="${db.dir}/${db.file}.tmp" overwrite="true">
+            <filterchain>
+                <filterreader classname="build.filters.SafeReplaceURLS">
+                    <param name="url.find" value="${db.url.placeholder}" />
+                    <param name="url.replace" value="${cms.url}" />
+                </filterreader>
+            </filterchain>
+        </copy>
+    </target>
+
+    <target name="db-import-str" description="Print mysql import command">
+        <if>
+            <equals arg1="${db.pass}" arg2="" />
+            <then>
+                <property name="cmd"  value="mysql -u ${db.user} -h ${db.host} ${db.name} &lt; ${db.dir}/${db.file}.tmp" override="true" />
+            </then>
+            <else>
+                <property name="cmd"  value="mysql -u ${db.user} -p${db.pass} -h ${db.host} ${db.name} &lt; ${db.dir}/${db.file}.tmp" override="true" />
+            </else>
+        </if>
+
+        <echo message="${cmd}" />
+    </target>
+
+    <target name="db-export" description="Backup database">
+        <if>
+            <equals arg1="${db.pass}" arg2="" />
+            <then>
+                <property name="cmd"  value="mysqldump -u ${db.user} --skip-comments --result-file=${db.file} ${db.name}" override="true" />
+            </then>
+            <else>
+                <property name="cmd"  value="mysqldump -u ${db.user} -p${db.pass} --skip-comments --result-file=${db.file} ${db.name}" override="true" />
+            </else>
+        </if>
+
+        <exec command="${cmd}" dir="${db.dir}" passthru="true" checkreturn="true" />
+
+        <reflexive file="${db.dir}/${db.file}">
+            <filterchain>
+                <filterreader classname="build.filters.SafeReplaceURLS">
+                    <param name="url.find" value="${cms.url}" />
+                    <param name="url.replace" value="${db.url.placeholder}" />
+                </filterreader>
+                <replaceregexp>
+                    <regexp pattern="\),\(" replace="),${line.separator}(" />
+                </replaceregexp>
+            </filterchain>
+        </reflexive>
+    </target>
+
+    <target name="db-import" description="Restore database">
+        <copy file="${db.dir}/${db.file}" tofile="${db.dir}/${db.file}.tmp" overwrite="true">
+            <filterchain>
+                <filterreader classname="build.filters.SafeReplaceURLS">
+                    <param name="url.find" value="${db.url.placeholder}" />
+                    <param name="url.replace" value="${cms.url}" />
+                </filterreader>
+            </filterchain>
+        </copy>
+
+        <if>
+            <equals arg1="${db.pass}" arg2="" />
+            <then>
+                <property name="cmd"  value="mysql -u ${db.user} -h ${db.host} ${db.name} &lt; ${db.dir}/${db.file}.tmp" override="true" />
+            </then>
+            <else>
+                <property name="cmd"  value="mysql -u ${db.user} -p${db.pass} -h ${db.host} ${db.name} &lt; ${db.dir}/${db.file}.tmp" override="true" />
+            </else>
+        </if>
+
+        <trycatch>
+            <try>
+                <exec command="${cmd}" dir="${db.dir}" passthru="true" checkreturn="true" />
+            </try>
+            <finally>
+                <delete file="${db.dir}/${db.file}.tmp" failonerror="true" />
+            </finally>
+        </trycatch>
+    </target>
+
+    <target name="db-prepare" description="Prepare database (replace urls to placeholders)">
+        <reflexive file="${db.dir}/${db.file}">
+            <filterchain>
+                <filterreader classname="build.filters.SafeReplaceURLS">
+                    <param name="url.find" value="${url}" />
+                    <param name="url.replace" value="${db.url.placeholder}" />
+                </filterreader>
+            </filterchain>
+        </reflexive>
+    </target>
+
+    <target name="db-prepare-external" description="Prepare database for import into external db">
+        <copy file="${db.dir}/${db.file}" tofile="${db.dir}/${db.external.file}" overwrite="true">
+            <filterchain>
+                <filterreader classname="build.filters.SafeReplaceURLS">
+                    <param name="url.find" value="${db.url.placeholder}" />
+                    <param name="url.replace" value="${db.external.url}" />
+                </filterreader>
+            </filterchain>
+        </copy>
+    </target>
+</project>
